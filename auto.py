@@ -137,7 +137,10 @@ def main():
                     question_new.content and
                     has_new_message(question_new) and
                     'bot' not in question_new.content):
-                    
+                    if question_new.msg_type == MessageType.TEXT:
+                        logger.info(f"收到文本消息: {question_new.content[:50]}")
+                        context.append(question_new.content)
+                        limit_context_size(context, max_size=5)
                     logger.info(f"收到新消息: {question_new.msg_type}")
                     pdf_reply = requestai.handle_question(question_new)
                     send(pdf_reply)

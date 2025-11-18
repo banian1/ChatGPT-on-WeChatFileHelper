@@ -18,6 +18,7 @@ MATH_PROMPT = ("- 行内公式用 \\(...\\) 包裹，如 \\(\\mathbf{E}\\)。\n"
                "- 禁止使用 $、$$ 或其他公式语法。\n"
                "- 确保 LaTeX 语法正确。")
 
+
 def get_openai_client():
     """创建OpenAI客户端"""
     if not API_KEY:
@@ -51,24 +52,22 @@ def request_ai(question: Message) -> str:
     """请求AI处理问题"""
     try:
         client = get_openai_client()
-        
-        if question.msg_type == MessageType.TEXT:
-            completion = client.chat.completions.create(
-                model="qwen3-max",
-                extra_body={
-                    'enable_thinking': True,
-                    "thinking_budget": 21920
-                },
-                messages=[
-                    {"role": "system", "content": "You are a helpful assistant."},
-                    {"role": "user", "content": question.content + "\n" + MATH_PROMPT},
-                ],
-                stream=False
-            )
-            return completion.choices[0].message.content
-        
-        elif question.msg_type == MessageType.IMAGE:
-            imgbase = _img2base64(question.content)
+        text = "".join(i for i in context)
+        text.join(MATH_PROMPT)
+        if question.msg_type == MessageType.IMAGE or question.msg_type == MessageType.TEXT:
+            content = []
+            if question.msg_type == MessageType.IMAGE:
+                imgbase = _img2base64(question.content)
+                content.append(
+                    {
+                        "type": "image_url",
+                        "image_url": {
+                            "url": f"data:image/png;base64,{imgbase}"
+                        }
+                    }
+                )
+            content.append({"type": "text", "text": text})
+            
             completion = client.chat.completions.create(
                 model="qwen3-vl-plus",
                 stream=False,
@@ -79,15 +78,7 @@ def request_ai(question: Message) -> str:
                 messages=[
                     {
                         "role": "user",
-                        "content": [
-                            {
-                                "type": "image_url",
-                                "image_url": {
-                                    "url": f"data:image/png;base64,{imgbase}"
-                                }
-                            },
-                            {"type": "text", "text": MATH_PROMPT}
-                        ],
+                        "content": content,
                     }
                 ]
             )
@@ -158,7 +149,10 @@ def handle_question(question: Message) -> Message:
         
         md_file = os.path.join('markdown', f'{filename}.md')
         pdf_file = os.path.join('pdf', f'{filename}.pdf')
-        
+
+        context.append(answer)
+        limit_context_size(context, max_size=5)
+
         with open(md_file, 'w', encoding='utf-8') as f:
             f.write(answer)
         
